@@ -1,9 +1,9 @@
 #!/bin/bash
 
-timestamp= `date +%m%d%y%H%M`
-mydate= `date +m%d%y`
-datadir=/sonatype-work
-configdir=/app/nexus
+timestamp=`date +%m%d%y%H%M`
+mydate=`date +m%d%y`
+datadir=/opt/sonatype-work/nexus3
+configdir=/opt/nexus
 backupdir=/backups
 logdir=/backups/logs
 notify=gopala.gabbita@gmail.com
@@ -12,15 +12,15 @@ archret=7
 
 ####### Decide on the env for a few variables ###########
 
-if  [`hostname` = nexus ]; then
+if  [`hostname` = nexus-dev ]; then
     myhost=nexus
-    healthurl= **/ping
+    healthurl=**/ping
     mybucket= #create aws bucket##
     logfile=/backups/logs/nexus.backup.$timestamp.log
     errlogfile=/backups/logs/nexus.backup.$timestamp.log
-elif [`hostname` = nexus]; then
+elif [`hostname` = nexus-prod]; then
     myhost=nexusiq-prod
-    healthurl= https://***/ping
+    healthurl=https://***/ping
     mybucket= ##s3 bucket create ##
     logfile=/backups/logs/nexus.backup.$timestamp.log
     errlogfile=/backups/logs/nexus.backup.$timestamp.err.log
@@ -30,19 +30,6 @@ else
  fi 
 
  #################functions###############
-
- f_verify()
- {
-if [-d $datadir/clm-server] && [`hostname` = $myhost] && [-d $backupdir] ; then
-    echo "environment validation passed - `date`" | tee $logfile 
-    echo "starting backups -   `date` " | tee $logfile
-else
-    echo " environment validation failed, exiting - `date` " | tee $logfile
-    mailx -a $errlogfile -s "`hostname` - Backup Failure, please check logfile" $notify < /dev/null
-    exit 1
-fi
-
- }
 
  #
 
@@ -66,6 +53,7 @@ fi
  {
 mkdir -p $backupdir/$mydate 
 cd $datadir ; tar -cf $backupdir/$mydate/sonatype-work.$myhost.$timestamp.tar
+
 if [$? != 0]; then 
     echo " Backup issues - please check - `date`" | tee -a $errlogfile
     echo "sending alert" # send alert 
@@ -78,10 +66,11 @@ fi
 
 f_backupfiles ()
 {
-cp -p $configdir/license/sonatype-license* $backupdir/$mydate 
-cp -p $configdir.nexus-*.jar $backupdir/$mydate/
-cp -p $configdir/config.yml $backupdir/$mydate/$mydate.config.yml
-cp -p $configdir/truststore/*.p12 $backupdir/$mydate/
+cp -p $configdir/current/system $backupdir/$mydate
+cp -p $configdir/current/lib $backupdir/$mydate.lib
+cp -p $configdir/current/etc $backupdir/$mydate.etc
+cp -p $configdir/current/bin $backupdir/$mydate.bin
+cp -p $configdir/current/public $backupdir/$mydate.bin
 
 if [$? != 0]; then 
     echo "Backup issues for config files - Please check - `date`" | tee -a $errlogfile
@@ -130,6 +119,6 @@ f_clean ()
 find $backupdir -mindpth 1 -xautofs -xdev -type d -mtime +$archret -exec rm -rf {} + >/dev/null 2>&1
 }
 ############################## Run functions. If any steps fail on alert will be sent ###################
-f_verify && f_stop && f_backup && f_backupfiles && f_startup && f_s3 && f_clean
+f_stop && f_backup && f_backupfiles && f_startup && f_s3 && f_clean
 
 ##end
